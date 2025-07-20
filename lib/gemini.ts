@@ -1,18 +1,18 @@
 // lib/gemini.ts
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+/* ---------- 0. Safe API key ---------- */
 const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) ?? '';
 if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is missing');
 
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-latest' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
 /* ---------- 1. Plain text ---------- */
 export async function generateText(prompt: string): Promise<string> {
   if (!prompt) return '';
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.text() ?? '';
+    return (await model.generateContent(prompt)).response.text() ?? '';
   } catch {
     return '';
   }
@@ -22,8 +22,8 @@ export async function generateText(prompt: string): Promise<string> {
 export async function getImageData(prompt: string): Promise<string> {
   if (!prompt) return '';
   try {
-    const result = await model.generateContent(prompt);
-    return result.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? '';
+    const res = await model.generateContent(prompt);
+    return res.response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? '';
   } catch {
     return '';
   }
@@ -33,8 +33,8 @@ export async function getImageData(prompt: string): Promise<string> {
 export async function getJsonFromText<T>(prompt: string): Promise<T | null> {
   if (!prompt) return null;
   try {
-    const text = (await model.generateContent(prompt)).response.text() ?? '';
-    return text ? (JSON.parse(text) as T) : null;
+    const text = (await model.generateContent(prompt)).response.text();
+    return text ? JSON.parse(text) as T : null;
   } catch {
     return null;
   }
