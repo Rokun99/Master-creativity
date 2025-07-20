@@ -1,63 +1,83 @@
-import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// 1. Safely get the API Key from environment variables
+// 1. Safely get the API Key from environment variables.
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!apiKey) {
-  // This stops the application from running if the API key is missing.
-  throw new Error("VITE_GEMINI_API_KEY is not defined. Please check your environment variables.");
+  // This will stop the application and show a clear error if the API key is missing.
+  throw new Error("VITE_GEMINI_API_KEY is not defined. Please set it in your environment variables.");
 }
 
-// 2. Initialize the Gemini AI client with the validated key
+// 2. Initialize the Gemini AI client with the validated key.
 const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest" });
+
 
 /**
- * A safe function to generate text from a prompt.
- * It checks for a valid prompt and safely handles the API response.
+ * FIX for line 22:
+ * Safely returns the response text, or an empty string if the text is undefined.
  */
 export async function generateText(prompt: string): Promise<string> {
-  // Ensure the prompt is a valid string before making an API call
-  if (!prompt) {
-    console.error("generateText was called with an empty prompt.");
-    return "";
-  }
+  if (!prompt) return "";
 
   try {
-    // IMPORTANT: Use the correct model name here. For example, Gemini 2.5 Flash.
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-latest" });
-    
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-
-    // Safely access the text from the response
-    const text = response?.text() ?? '';
+    // FIX: Use nullish coalescing operator (??) to provide a default value.
+    const text = result.response.text() ?? '';
     return text;
-
   } catch (error) {
-    console.error("Error generating text from Gemini:", error);
-    return ""; // Return an empty string on error
+    console.error("Error in generateText:", error);
+    return "";
   }
 }
 
 /**
- * A safe function for a hypothetical case where you might get image data.
- * This pattern addresses the "'response.generatedImages' is possibly 'undefined'" error.
+ * FIX for potential undefined nested properties.
+ * Safely accesses deeply nested properties.
  */
-export async function getImageUrlFromResponse(prompt: string): Promise<string> {
-    if (!prompt) {
-        return "";
+export async function getImageData(prompt: string): Promise<string> {
+  if (!prompt) return "";
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+
+    // FIX: Use optional chaining (?.) to safely navigate the object.
+    // The final '?? ""' ensures the result is always a string.
+    const base64ImageBytes = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? '';
+    
+    return base64ImageBytes;
+  } catch (error) {
+    console.error("Error in getImageData:", error);
+    return "";
+  }
+}
+
+/**
+ * FIX for lines 61, 63, etc.:
+ * Safely parses JSON from the response text.
+ */
+export async function getJsonFromText<T>(prompt: string): Promise<T | null> {
+  if (!prompt) return null;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+
+    // FIX: Add a guard clause to ensure text is not undefined or empty before parsing.
+    if (text) {
+      try {
+        // A second try-catch for the JSON parsing itself, which can also fail.
+        return JSON.parse(text) as T;
+      } catch (parseError) {
+        console.error("Failed to parse JSON from response:", parseError);
+        return null;
+      }
     }
     
-    // This is a placeholder for your actual API call.
-    const mockResponse = {
-        text: "some text",
-        generatedImages: [
-            { url: "https://example.com/image.png" }
-        ]
-    };
-
-    // Safely access the nested URL.
-    const imageUrl = mockResponse?.generatedImages?.[0]?.url ?? '';
-
-    return imageUrl;
+    return null;
+  } catch (error) {
+    console.error("Error in getJsonFromText:", error);
+    return null;
+  }
 }
