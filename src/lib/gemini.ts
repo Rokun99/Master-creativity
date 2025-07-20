@@ -1,18 +1,14 @@
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { JournalEntry } from "../storage";
 
-let ai: GoogleGenAI | null = null;
-
-function getAi() {
-    if (!ai) {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-            console.error("VITE_GEMINI_API_KEY environment variable not set");
-            throw new Error("API key not configured.");
-        }
-        ai = new GoogleGenAI({ apiKey });
+// No more singleton pattern. Create a new instance on demand and check key every time.
+const getAi = (): GoogleGenAI => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+        console.error("VITE_GEMINI_API_KEY environment variable not set");
+        throw new Error("API key not configured.");
     }
-    return ai;
+    return new GoogleGenAI({ apiKey });
 }
 
 export async function getAiChatResponse(history: { role: string, parts: { text: string }[] }[], systemInstruction: string, newMessage: string): Promise<string> {
@@ -66,6 +62,31 @@ export async function getStructuredFeedback(prompt: string, systemInstruction: s
 
     return JSON.parse(response.text);
 }
+
+export async function generateIdeas(systemInstruction: string): Promise<any> {
+    const ai = getAi();
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: systemInstruction,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        title: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                    },
+                    required: ["title", "description"]
+                },
+            },
+        },
+    });
+    
+    return JSON.parse(response.text);
+}
+
 
 export async function generateDnaReport(journalEntries: JournalEntry[], systemInstruction: string): Promise<any> {
     const ai = getAi();

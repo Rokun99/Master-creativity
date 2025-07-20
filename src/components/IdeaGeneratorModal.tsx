@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateIdeas } from '../lib/gemini';
 import { Icon } from './Header';
 
 interface Idea {
@@ -33,43 +32,22 @@ export const IdeaGeneratorModal: React.FC<IdeaGeneratorModalProps> = ({ onClose 
         e.preventDefault();
         if (!prompt.trim() || isLoading) return;
 
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-            setError(t('exercise.chat.error.unavailable'));
-            return;
-        }
-
         setIsLoading(true);
         setError('');
         setIdeas([]);
 
         try {
-            const ai = new GoogleGenAI({ apiKey });
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: t('ideaGenerator.modal.systemPrompt', { prompt }),
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                title: { type: Type.STRING },
-                                description: { type: Type.STRING },
-                            },
-                            required: ["title", "description"]
-                        },
-                    },
-                },
-            });
-            
-            const generatedIdeas = JSON.parse(response.text);
+            const systemInstruction = t('ideaGenerator.modal.systemPrompt', { prompt });
+            const generatedIdeas = await generateIdeas(systemInstruction);
             setIdeas(generatedIdeas);
 
-        } catch (e) {
+        } catch (e: any) {
             console.error("Idea Generation Error:", e);
-            setError(t('ideaGenerator.modal.error.generic'));
+             if (e.message?.includes("API key not configured")) {
+                 setError(t('exercise.chat.error.unavailable'));
+            } else {
+                 setError(t('ideaGenerator.modal.error.generic'));
+            }
         } finally {
             setIsLoading(false);
         }
