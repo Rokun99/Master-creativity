@@ -39,7 +39,7 @@ export const IdeaGeneratorModal: React.FC<IdeaGeneratorModalProps> = ({ onClose 
         try {
             const systemInstruction = t('ideaGenerator.modal.systemPrompt', { prompt });
             const generatedIdeas = await generateIdeas(systemInstruction);
-            setIdeas(generatedIdeas);
+            setIdeas([...ideas, newIdea]);;
 
         } catch (e: any) {
             console.error("Idea Generation Error:", e);

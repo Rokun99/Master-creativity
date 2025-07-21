@@ -168,7 +168,7 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
                 text: 'AI Feedback Received',
                 timestamp: Date.now(),
                 type: 'feedback',
-                feedback: feedbackResult
+                feedback: undefined
             };
             const newMessages = [...messages, feedbackMessage];
             setMessages(newMessages);
