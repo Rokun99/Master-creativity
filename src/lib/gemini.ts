@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Content } from "@google/genai";
 import { JournalEntry, DnaReportData, Feedback } from "../storage";
 
@@ -125,11 +126,13 @@ export async function generateImageForPrompt(prompt: string): Promise<string> {
             },
         });
 
-        if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        const base64ImageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+
+        if (base64ImageBytes) {
             return `data:image/jpeg;base64,${base64ImageBytes}`;
         }
-        throw new Error("No image was generated.");
+        
+        throw new Error("No image was generated or image data is missing.");
     } catch (error) {
         console.error("Error generating image:", error);
         throw new Error("Failed to generate image from AI.");
