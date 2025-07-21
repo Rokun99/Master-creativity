@@ -16,7 +16,6 @@ interface Idea {
 
 /**
  * Gets a chat response from the AI.
- * The signature is kept as chat history is complex; the fix is in the caller's type inference.
  * @param history The chat history.
  * @param systemInstruction The system instruction for the AI.
  * @returns The AI's response text.
@@ -30,7 +29,7 @@ export async function getAiChatResponse(history: Content[], systemInstruction: s
                 systemInstruction: systemInstruction,
             },
         });
-        return response.text;
+        return response.text ?? '';
     } catch (error) {
         console.error("Error getting AI chat response:", error);
         throw new Error("Failed to get response from AI.");
@@ -68,7 +67,9 @@ export async function generateIdeas(prompt: string): Promise<Idea[]> {
                 },
             },
         });
-        return JSON.parse(response.text.trim()) as Idea[];
+        const text = response.text?.trim();
+        if (!text) return [];
+        return JSON.parse(text) as Idea[];
     } catch (error) {
         console.error("Error generating ideas:", error);
         throw new Error("Failed to generate ideas from AI.");
@@ -98,7 +99,9 @@ export async function getStructuredFeedback(prompt: string): Promise<Feedback> {
                 },
             },
         });
-        return JSON.parse(response.text.trim()) as Feedback;
+        const text = response.text?.trim();
+        if (!text) throw new Error("AI returned empty feedback.");
+        return JSON.parse(text) as Feedback;
     } catch (error) {
         console.error("Error getting structured feedback:", error);
         throw new Error("Failed to get structured feedback from AI.");
@@ -173,7 +176,9 @@ export async function generateDnaReport(prompt: string): Promise<Omit<DnaReportD
                 },
             },
         });
-        return JSON.parse(response.text.trim()) as Omit<DnaReportData, 'generatedAt'>;
+        const text = response.text?.trim();
+        if (!text) throw new Error("AI returned an empty DNA report.");
+        return JSON.parse(text) as Omit<DnaReportData, 'generatedAt'>;
     } catch (error) {
         console.error("Error generating DNA report:", error);
         throw new Error("Failed to generate DNA report from AI.");

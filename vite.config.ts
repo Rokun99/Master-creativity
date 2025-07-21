@@ -1,8 +1,7 @@
-/// <reference types="node" />
-
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
   // Lädt Umgebungsvariablen aus der .env-Datei
