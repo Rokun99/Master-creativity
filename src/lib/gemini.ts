@@ -1,89 +1,181 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Type, Content } from "@google/genai";
+import { JournalEntry, DnaReportData, Feedback } from "../storage";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+// The vite.config.ts file defines process.env.API_KEY from VITE_GEMINI_API_KEY.
+const apiKey = process.env.API_KEY;
 if (!apiKey) {
-  throw new Error("VITE_GEMINI_API_KEY is not defined. Please set this in your Netlify environment variables.");
+    throw new Error("VITE_GEMINI_API_KEY is not defined. Please check your environment variables.");
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const ai = new GoogleGenAI({ apiKey });
 
-/**
- * Generiert Text und stellt sicher, dass immer ein String zurückgegeben wird.
- */
-export async function generateText(prompt: string): Promise<string> {
-  if (!prompt) return "";
-  try {
-    const result = await model.generateContent(prompt);
-    // LÖSUNG: response?.text() kann undefined sein. ?? '' stellt sicher,
-    // dass wir immer einen String zurückgeben. Dies behebt TS2322.
-    return result.response?.text() ?? '';
-  } catch (error) {
-    console.error("Error in generateText:", error);
-    return "";
-  }
+interface Idea {
+    title: string;
+    description: string;
 }
 
 /**
- * Ruft Bilddaten ab und stellt sicher, dass immer ein String zurückgegeben wird.
+ * Gets a chat response from the AI.
+ * The signature is kept as chat history is complex; the fix is in the caller's type inference.
+ * @param history The chat history.
+ * @param systemInstruction The system instruction for the AI.
+ * @returns The AI's response text.
  */
-export async function getImageData(prompt: string): Promise<string> {
-    if (!prompt) return "";
+export async function getAiChatResponse(history: Content[], systemInstruction: string): Promise<string> {
     try {
-      const result = await model.generateContent(prompt);
-      // LÖSUNG: Der lange Pfad wird mit Optional Chaining (?.) abgesichert
-      // und am Ende mit ?? '' als String garantiert.
-      const base64ImageBytes = result.response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data ?? '';
-      return base64ImageBytes;
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: history,
+            config: {
+                systemInstruction: systemInstruction,
+            },
+        });
+        return response.text;
     } catch (error) {
-      console.error("Error in getImageData:", error);
-      return "";
+        console.error("Error getting AI chat response:", error);
+        throw new Error("Failed to get response from AI.");
     }
 }
 
 /**
- * Ruft Text ab und versucht, ihn als JSON zu parsen.
+ * Generates creative ideas based on a prompt.
+ * @param prompt The prompt to generate ideas for.
+ * @returns A list of ideas with titles and descriptions.
  */
-export async function getJsonFromText<T>(prompt: string): Promise<T | null> {
-  if (!prompt) return null;
-  try {
-    const result = await model.generateContent(prompt);
-    const text = result.response?.text();
-
-    // LÖSUNG: Nur wenn Text ein valider String ist, wird geparst.
-    if (text) {
-      try {
-        return JSON.parse(text) as T;
-      } catch (e) {
-        console.error("Failed to parse JSON:", e);
-        return null;
-      }
+export async function generateIdeas(prompt: string): Promise<Idea[]> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: {
+                                type: Type.STRING,
+                                description: 'The short, catchy title of the idea.',
+                            },
+                            description: {
+                                type: Type.STRING,
+                                description: 'A brief description of the creative idea.',
+                            },
+                        },
+                        required: ['title', 'description'],
+                    },
+                },
+            },
+        });
+        return JSON.parse(response.text.trim()) as Idea[];
+    } catch (error) {
+        console.error("Error generating ideas:", error);
+        throw new Error("Failed to generate ideas from AI.");
     }
-    return null;
-  } catch (error) {
-    console.error("Error in getJsonFromText:", error);
-    return null;
-  }
-}
-// DayContent.tsx helpers
-export async function getAiChatResponse(prompt: string) {
-  return generateText(prompt);
 }
 
-export async function generateImageForPrompt(prompt: string) {
-  return getImageData(prompt);
+/**
+ * Gets structured feedback on a conversation.
+ * @param prompt The combined prompt including context and system instruction.
+ * @returns Structured feedback.
+ */
+export async function getStructuredFeedback(prompt: string): Promise<Feedback> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        like: { type: Type.STRING },
+                        wish: { type: Type.STRING },
+                        whatIf: { type: Type.STRING },
+                    },
+                    required: ['like', 'wish', 'whatIf'],
+                },
+            },
+        });
+        return JSON.parse(response.text.trim()) as Feedback;
+    } catch (error) {
+        console.error("Error getting structured feedback:", error);
+        throw new Error("Failed to get structured feedback from AI.");
+    }
 }
 
-export async function getStructuredFeedback<T>(prompt: string) {
-  return getJsonFromText<T>(prompt);
+/**
+ * Generates an image for a prompt.
+ * @param prompt The combined prompt for the image.
+ * @returns A base64 encoded image string.
+ */
+export async function generateImageForPrompt(prompt: string): Promise<string> {
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-3.0-generate-002',
+            prompt: prompt,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '1:1',
+            },
+        });
+
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
+        }
+        throw new Error("No image was generated.");
+    } catch (error) {
+        console.error("Error generating image:", error);
+        throw new Error("Failed to generate image from AI.");
+    }
 }
 
-// IdeaGeneratorModal.tsx helper
-export async function generateIdeas(prompt: string) {
-  return generateText(prompt);
-}
-
-// index.tsx helper
-export async function generateDnaReport(prompt: string) {
-  return generateText(prompt);
+/**
+ * Generates a Creative DNA report from a text prompt.
+ * @param prompt The combined prompt including all journal entries and system instructions.
+ * @returns The structured DNA report data.
+ */
+export async function generateDnaReport(prompt: string): Promise<Omit<DnaReportData, 'generatedAt'>> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        archetype: {
+                            type: Type.OBJECT,
+                            properties: { name: { type: Type.STRING }, description: { type: Type.STRING } },
+                            required: ['name', 'description'],
+                        },
+                        themes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        breakthrough: {
+                            type: Type.OBJECT,
+                            properties: { day: { type: Type.INTEGER }, quote: { type: Type.STRING } },
+                            required: ['day', 'quote'],
+                        },
+                        pathForward: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        wordCloud: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: { text: { type: Type.STRING }, value: { type: Type.NUMBER } },
+                                required: ['text', 'value'],
+                            },
+                        },
+                    },
+                    required: ['archetype', 'themes', 'breakthrough', 'pathForward', 'wordCloud'],
+                },
+            },
+        });
+        return JSON.parse(response.text.trim()) as Omit<DnaReportData, 'generatedAt'>;
+    } catch (error) {
+        console.error("Error generating DNA report:", error);
+        throw new Error("Failed to generate DNA report from AI.");
+    }
 }

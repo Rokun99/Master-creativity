@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getDB, ChatMessage, JournalEntry, DnaReportData, ReminderSubscription } from './storage';
@@ -270,7 +269,21 @@ const AppContent = () => {
             }
     
             const allEntries = Object.values(journalEntries);
-            const report = await generateDnaReport(allEntries, t('dnaReport.systemPrompt'));
+            const journalText = allEntries
+                .sort((a, b) => a.dayId - b.dayId)
+                .map(entry => {
+                    const entryText = entry.content
+                        .filter(msg => msg.sender === 'user' && msg.text)
+                        .map(msg => msg.text)
+                        .join('\n');
+                    return `--- Day ${entry.dayId} ---\n${entryText}`;
+                })
+                .join('\n\n');
+
+            const systemPrompt = t('dnaReport.systemPrompt');
+            const fullPrompt = `${systemPrompt}\n\n## User's Journal Entries:\n${journalText}`;
+
+            const report = await generateDnaReport(fullPrompt);
             
             const newReportData: DnaReportData = { ...report, generatedAt: Date.now() };
             setDnaReportData(newReportData);

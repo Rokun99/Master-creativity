@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { DayData } from '../data';
 import { useTranslation } from '../hooks/useTranslation';
@@ -116,13 +115,11 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
 
         try {
             const history = currentMessages
+                .filter(m => m.type === 'text')
                 .map(m => {
-                    if (m.type !== 'text') return null;
-                    if (m.sender === 'user') {
-                        return { role: 'user', parts: [{ text: m.text }] };
-                    }
-                    if (m.sender === 'ai') {
-                        return { role: 'model', parts: [{ text: m.text }] };
+                    if (m.sender === 'user' || m.sender === 'ai') {
+                        const role: 'user' | 'model' = m.sender === 'user' ? 'user' : 'model';
+                        return { role, parts: [{ text: m.text }] };
                     }
                     return null;
                 })
@@ -133,7 +130,7 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
                 description: t(dayData.exercise.description) 
             });
 
-            const aiResponseText = await getAiChatResponse(history, systemInstruction, userMessage.text);
+            const aiResponseText = await getAiChatResponse(history, systemInstruction);
             
             const aiMessage: ChatMessage = {
                 sender: 'ai',
@@ -161,14 +158,15 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
         setIsSpecialLoading(true);
         setError('');
         const conversationContext = messages.map(m => `${m.sender}: ${m.text}`).join('\n');
+        const fullPrompt = `${t('exercise.feedback.systemPrompt')}\n\n## Conversation History:\n${conversationContext}`;
         try {
-            const feedbackResult = await getStructuredFeedback(conversationContext, t('exercise.feedback.systemPrompt'));
+            const feedbackResult = await getStructuredFeedback(fullPrompt);
             const feedbackMessage: ChatMessage = {
                 sender: 'system',
                 text: 'AI Feedback Received',
                 timestamp: Date.now(),
                 type: 'feedback',
-                feedback: undefined
+                feedback: feedbackResult
             };
             const newMessages = [...messages, feedbackMessage];
             setMessages(newMessages);
@@ -185,8 +183,9 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
         setIsSpecialLoading(true);
         setError('');
         const lastUserMessage = [...messages].reverse().find(m => m.sender === 'user')?.text || 'my creative project idea';
+        const fullPrompt = `${t('exercise.visualize.systemPrompt')}: ${lastUserMessage}`;
         try {
-            const imageUrl = await generateImageForPrompt(lastUserMessage, t('exercise.visualize.systemPrompt'));
+            const imageUrl = await generateImageForPrompt(fullPrompt);
             const imageMessage: ChatMessage = {
                 sender: 'system',
                 text: `Image generated for: "${lastUserMessage}"`,

@@ -1,12 +1,13 @@
+/// <reference types="node" />
 
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default ({ mode }) => {
+export default defineConfig(({ mode }) => {
   // Lädt Umgebungsvariablen aus der .env-Datei
-  const env = loadEnv(mode, '', '');
-  return defineConfig({
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
     plugins: [
       react(),
       VitePWA({
@@ -52,5 +53,5 @@ export default ({ mode }) => {
       // Browser-Code als process.env.API_KEY verfügbar und erfüllt so die Anforderung.
       'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY)
     }
-  });
-}
+  };
+})
