@@ -65,3 +65,25 @@ export async function getJsonFromText<T>(prompt: string): Promise<T | null> {
     return null;
   }
 }
+// DayContent.tsx helpers
+export async function getAiChatResponse(prompt: string) {
+  return generateText(prompt);
+}
+
+export async function generateImageForPrompt(prompt: string) {
+  return getImageData(prompt);
+}
+
+export async function getStructuredFeedback<T>(prompt: string) {
+  return getJsonFromText<T>(prompt);
+}
+
+// IdeaGeneratorModal.tsx helper
+export async function generateIdeas(prompt: string) {
+  return generateText(prompt);
+}
+
+// index.tsx helper
+export async function generateDnaReport(prompt: string) {
+  return generateText(prompt);
+}
