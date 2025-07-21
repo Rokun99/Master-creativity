@@ -43,11 +43,7 @@ export const IdeaGeneratorModal: React.FC<IdeaGeneratorModalProps> = ({ onClose 
 
         } catch (e: any) {
             console.error("Idea Generation Error:", e);
-             if (e.message?.includes("API key not configured")) {
-                 setError(t('exercise.chat.error.unavailable'));
-            } else {
-                 setError(t('ideaGenerator.modal.error.generic'));
-            }
+            setError(t('ideaGenerator.modal.error.generic'));
         } finally {
             setIsLoading(false);
         }

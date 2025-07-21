@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getDB, ChatMessage, JournalEntry, DnaReportData, ReminderSubscription } from './storage';
 import { TranslationProvider, useTranslation } from './hooks/useTranslation';
@@ -53,7 +53,7 @@ const AppContent = () => {
 
     const { setLang, t } = useTranslation();
 
-    const completedDays = new Set(Object.values(journalEntries).filter(entry => !!entry.completedAt).map(entry => entry.dayId));
+    const completedDays = useMemo(() => new Set(Object.values(journalEntries).filter(entry => !!entry.completedAt).map(entry => entry.dayId)), [journalEntries]);
 
     useEffect(() => {
         async function loadData() {
@@ -97,6 +97,17 @@ const AppContent = () => {
         loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    
+    const setSelectedDay = useCallback(async (dayId: number) => {
+        if (dayId < 1 || dayId > 30) return;
+        const isCompleted = completedDays.has(dayId);
+        const isUnlocked = dayId === 1 || completedDays.has(dayId - 1) || isCompleted;
+
+        if (isUnlocked) {
+            setSelectedDayState(dayId);
+            await (await getDB()).put('settings', dayId, 'selectedDay');
+        }
+    }, [completedDays]);
 
     useEffect(() => {
         const handleScroll = () => setIsHeaderScrolled(window.scrollY > 20);
@@ -126,11 +137,10 @@ const AppContent = () => {
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedDay]);
+    }, [selectedDay, setSelectedDay]);
 
 
-    const checkAndUnlockAchievements = async (currentCompletedDays: Set<number>) => {
+    const checkAndUnlockAchievements = useCallback(async (currentCompletedDays: Set<number>) => {
         const db = await getDB();
         for (const badge of gamificationData.badges) {
             if (!unlockedBadges.has(badge.id) && badge.condition(currentCompletedDays)) {
@@ -140,31 +150,19 @@ const AppContent = () => {
                 setToastQueue(prev => [...prev, { id: badge.id, badgeName: t(`achievements.badge.${badge.id}.name`) }]);
             }
         }
-    };
+    }, [unlockedBadges, t]);
     
     useEffect(() => {
         if (!isLoading) {
             checkAndUnlockAchievements(completedDays);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [completedDays.size, isLoading]);
+    }, [completedDays, isLoading, checkAndUnlockAchievements]);
 
 
     const setTheme = async (newTheme: string) => {
         setThemeState(newTheme);
         document.body.setAttribute('data-theme', newTheme);
         await (await getDB()).put('settings', newTheme, 'theme');
-    };
-    
-    const setSelectedDay = async (dayId: number) => {
-        if (dayId < 1 || dayId > 30) return;
-        const isCompleted = completedDays.has(dayId);
-        const isUnlocked = dayId === 1 || completedDays.has(dayId - 1) || isCompleted;
-
-        if (isUnlocked) {
-            setSelectedDayState(dayId);
-            await (await getDB()).put('settings', dayId, 'selectedDay');
-        }
     };
     
     const setJournalEntry = async (dayId: number, content: ChatMessage[]) => {
@@ -267,11 +265,8 @@ const AppContent = () => {
             const storedReport = await db.get('dnaReport', 'userReport');
             if (storedReport) {
                 setDnaReportData(storedReport);
+                setIsDnaReportGenerating(false);
                 return;
-            }
-    
-            if (!import.meta.env.VITE_GEMINI_API_KEY) {
-                throw new Error("API key not configured.");
             }
     
             const allEntries = Object.values(journalEntries);

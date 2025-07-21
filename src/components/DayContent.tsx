@@ -116,11 +116,17 @@ const DayExerciseContent: React.FC<Omit<DayContentProps, 'layout'>> = ({ dayData
 
         try {
             const history = currentMessages
-                .filter(m => (m.sender === 'user' || m.sender === 'ai') && m.type === 'text')
-                .map(m => ({
-                    role: m.sender === 'user' ? 'user' : 'model',
-                    parts: [{ text: m.text }]
-                }));
+                .map(m => {
+                    if (m.type !== 'text') return null;
+                    if (m.sender === 'user') {
+                        return { role: 'user', parts: [{ text: m.text }] };
+                    }
+                    if (m.sender === 'ai') {
+                        return { role: 'model', parts: [{ text: m.text }] };
+                    }
+                    return null;
+                })
+                .filter((item): item is { role: "user" | "model"; parts: { text: string; }[] } => item !== null);
             
             const systemInstruction = t('exercise.chat.systemPrompt', { 
                 topic: t(dayData.title), 
